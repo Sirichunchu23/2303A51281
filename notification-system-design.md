@@ -464,3 +464,157 @@ This ensures:
 - Reduced database load
 - Better scalability
 
+# Stage 5
+
+## Shortcomings of Current Implementation
+
+Given pseudocode:
+
+```python
+function notify_all(student_ids: array, message: string):
+    for student_id in student_ids:
+        send_email(student_id, message)
+        save_to_db(student_id, message)
+        push_to_app(student_id, message)
+```
+
+Problems:
+
+### 1. Sequential Processing
+Each student is processed one by one.
+
+For 50,000 students:
+- Very slow
+- High latency
+- Poor scalability
+
+### 2. Single Point of Failure
+If one email API call fails, the loop may stop or become inconsistent.
+
+### 3. Tight Coupling
+Email sending, DB storage, and app push are tightly connected.
+
+Failure in one service affects all others.
+
+### 4. No Retry Mechanism
+Temporary failures are not retried.
+
+### 5. No Fault Tolerance
+System cannot recover gracefully from crashes.
+
+---
+
+## If Email Fails for 200 Students
+
+Logs show 200 email failures.
+
+Problems:
+- Some students receive notification
+- Some students miss email
+- Data becomes inconsistent
+
+Solution:
+Failed email jobs should be moved to a retry queue.
+
+Example:
+- Retry after 1 minute
+- Retry after 5 minutes
+- Retry after 15 minutes
+
+After max retries:
+- Move to dead-letter queue
+- Alert admins
+
+---
+
+## Improved Design
+
+Use asynchronous event-driven architecture.
+
+Components:
+
+1. Notification Producer
+2. Message Queue (RabbitMQ / Kafka)
+3. Email Worker
+4. DB Worker
+5. Push Notification Worker
+
+Flow:
+
+1. HR clicks “Notify All”
+2. Bulk jobs pushed into queue
+3. Workers process jobs independently
+4. Failed jobs automatically retry
+
+Benefits:
+- Fast
+- Reliable
+- Scalable
+- Fault tolerant
+
+---
+
+## Should DB Save and Email Happen Together?
+
+No.
+
+They should be decoupled.
+
+Reason:
+
+Saving notification in DB is critical system data.
+
+Email delivery is an external service and may fail.
+
+If both are tightly coupled:
+- Email failure may block DB write
+
+Best approach:
+1. Save notification first
+2. Publish async email job
+
+This ensures notification is never lost.
+
+---
+
+## Revised Pseudocode
+
+```python
+function notify_all(student_ids, message):
+
+    batch = []
+
+    for student_id in student_ids:
+        notification = {
+            "student_id": student_id,
+            "message": message
+        }
+
+        batch.append(notification)
+
+    save_bulk_notifications(batch)
+
+    for notification in batch:
+        queue.publish("email_jobs", notification)
+        queue.publish("push_jobs", notification)
+```
+
+### Email Worker
+
+```python
+while True:
+    job = queue.consume("email_jobs")
+
+    try:
+        send_email(job.student_id, job.message)
+    except:
+        retry(job)
+```
+
+### Push Worker
+
+```python
+while True:
+    job = queue.consume("push_jobs")
+    push_to_app(job.student_id, job.message)
+```

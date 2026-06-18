@@ -102,3 +102,141 @@ Workflow:
 - Server stores active connections
 - New notifications are pushed instantly
 - If offline, notifications remain in database for later fetch
+
+
+# Stage 2
+
+## Persistent Storage Choice
+
+I recommend using **PostgreSQL** as the persistent storage.
+
+### Why PostgreSQL?
+- Supports ACID transactions for reliable notification delivery
+- Handles large datasets efficiently
+- Strong indexing support for fast querying
+- Supports partitioning and scaling
+- Suitable for structured relational data such as students and notifications
+
+---
+
+## Database Schema
+
+### Students Table
+
+```sql
+CREATE TABLE students (
+    studentID INT PRIMARY KEY,
+    studentName VARCHAR(100),
+    email VARCHAR(100)
+);
+```
+
+### Notifications Table
+
+```sql
+CREATE TABLE notifications (
+    notificationID UUID PRIMARY KEY,
+    studentID INT,
+    notificationType VARCHAR(20),
+    message TEXT,
+    isRead BOOLEAN DEFAULT FALSE,
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (studentID) REFERENCES students(studentID)
+);
+```
+
+---
+
+## Problems as Data Volume Increases
+
+As notification count grows:
+
+1. Slow query performance  
+   - Fetching unread notifications becomes slower
+
+2. Increased storage usage  
+   - Millions of rows increase disk usage
+
+3. Higher DB load  
+   - Frequent reads and writes overload database
+
+4. Index maintenance overhead  
+   - More data means indexes become larger
+
+---
+
+## Solutions
+
+### 1. Indexing
+Create indexes on frequently searched columns.
+
+```sql
+CREATE INDEX idx_student_read
+ON notifications(studentID, isRead);
+```
+
+### 2. Partitioning
+Split notifications table by month or year.
+
+Example:
+- notifications_2026_jan
+- notifications_2026_feb
+
+### 3. Archiving Old Data
+Move old notifications to cold storage.
+
+### 4. Caching
+Use Redis to cache unread notification counts.
+
+---
+
+## Queries Based on REST APIs
+
+### Create Notification
+
+```sql
+INSERT INTO notifications (
+    notificationID,
+    studentID,
+    notificationType,
+    message
+)
+VALUES (
+    gen_random_uuid(),
+    1042,
+    'Placement',
+    'Amazon hiring'
+);
+```
+
+### Fetch All Notifications
+
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042
+ORDER BY createdAt DESC
+LIMIT 20;
+```
+
+### Fetch Unread Notifications
+
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042
+AND isRead = FALSE;
+```
+
+### Mark Notification as Read
+
+```sql
+UPDATE notifications
+SET isRead = TRUE
+WHERE notificationID = 'notification_uuid';
+```
+
+### Delete Notification
+
+```sql
+DELETE FROM notifications
+WHERE notificationID = 'notification_uuid';
+```

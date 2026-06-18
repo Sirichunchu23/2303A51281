@@ -359,3 +359,108 @@ WHERE notificationType = 'Placement'
 AND createdAt >= NOW() - INTERVAL '7 days';
 ```
 
+# Stage 4
+
+## Problem
+
+Notifications are being fetched from the database on every page load for every student.
+
+This causes:
+
+- High database read load
+- Increased response latency
+- Poor user experience
+- Server resource exhaustion during peak usage
+
+---
+
+## Suggested Solutions
+
+### 1. Caching using Redis
+
+Store frequently accessed notifications or unread notification counts in Redis.
+
+Workflow:
+- First request → fetch from DB
+- Store response in Redis
+- Future requests → serve from cache
+- Refresh cache when new notifications arrive
+
+Benefits:
+- Reduces DB load
+- Faster response times
+
+Tradeoffs:
+- Extra infrastructure needed
+- Cache invalidation complexity
+
+---
+
+### 2. Pagination / Lazy Loading
+
+Instead of loading all notifications at once:
+
+Example:
+- Page 1 → first 20 notifications
+- Load more on scroll
+
+Benefits:
+- Smaller DB queries
+- Reduced network usage
+
+Tradeoffs:
+- Additional frontend logic
+- Multiple API calls for large history
+
+---
+
+### 3. WebSocket / Push Updates
+
+Instead of polling database on every page load:
+
+- Client establishes persistent connection
+- Server pushes only new notifications
+
+Benefits:
+- Real-time updates
+- Eliminates repeated fetching
+
+Tradeoffs:
+- More server memory for active connections
+- WebSocket scaling complexity
+
+---
+
+### 4. Read Replica Database
+
+Use replicas for read-heavy operations.
+
+Architecture:
+- Primary DB handles writes
+- Replica DB handles reads
+
+Benefits:
+- Improves scalability
+- Reduces load on main DB
+
+Tradeoffs:
+- Replication lag
+- Additional infrastructure cost
+
+---
+
+## Recommended Architecture
+
+Best solution is a combination of:
+
+- Redis caching
+- Pagination
+- WebSockets
+- Read replicas
+
+This ensures:
+- Fast reads
+- Real-time updates
+- Reduced database load
+- Better scalability
+

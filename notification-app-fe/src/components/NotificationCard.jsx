@@ -1,21 +1,34 @@
 import { Card, CardContent, Chip, Stack, Typography } from "@mui/material";
 
 export function NotificationCard({ notification }) {
+  const key = `notif_${notification.ID}`;
+  const isViewed = localStorage.getItem(key) === "read";
+
+  const markAsRead = () => {
+    localStorage.setItem(key, "read");
+  };
+
   return (
-    <Card elevation={2}>
+    <Card
+      onClick={markAsRead}
+      sx={{
+        backgroundColor: isViewed ? "#fff" : "#e3f2fd",
+        cursor: "pointer",
+      }}
+    >
       <CardContent>
         <Stack spacing={1}>
-          <Stack direction="row" justifyContent="space-between">
-            <Chip label={notification.Type} color="primary" size="small" />
-          </Stack>
+          <Chip label={notification.Type} size="small" />
 
-          <Typography variant="body1">
-            {notification.Message}
-          </Typography>
+          <Typography>{notification.Message}</Typography>
 
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption">
             {notification.Timestamp}
           </Typography>
+
+          {!isViewed && (
+            <Chip label="NEW" color="success" size="small" />
+          )}
         </Stack>
       </CardContent>
     </Card>

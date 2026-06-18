@@ -240,3 +240,122 @@ WHERE notificationID = 'notification_uuid';
 DELETE FROM notifications
 WHERE notificationID = 'notification_uuid';
 ```
+
+# Stage 3
+
+## Query Analysis
+
+Given Query:
+
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042 AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+---
+
+## Is this Query Accurate?
+
+Yes, the query correctly fetches all unread notifications for student 1042 and sorts them by creation time in ascending order.
+
+However, although logically correct, it is inefficient for large datasets.
+
+---
+
+## Why is This Slow?
+
+Database size:
+
+- 50,000 students
+- 5,000,000 notifications
+
+Reasons for slow performance:
+
+### 1. Full Table Scan
+If no index exists, database scans millions of rows.
+
+### 2. Sorting Cost
+ORDER BY createdAt requires additional sorting.
+
+### 3. Large Result Set
+Fetching all unread notifications may return many rows.
+
+### 4. SELECT *
+Returns unnecessary columns, increasing I/O cost.
+
+---
+
+## What Would I Change?
+
+### Add Composite Index
+
+```sql
+CREATE INDEX idx_notifications_student_read_created
+ON notifications(studentID, isRead, createdAt);
+```
+
+Benefits:
+- Fast filtering by studentID
+- Fast filtering by unread status
+- Faster sorting using index order
+
+### Optimize Query
+
+```sql
+SELECT notificationID, message, notificationType, createdAt
+FROM notifications
+WHERE studentID = 1042
+AND isRead = FALSE
+ORDER BY createdAt ASC;
+```
+
+---
+
+## Likely Computation Cost
+
+Without index:
+
+- Time Complexity ≈ O(N log N)
+
+Where N = total notifications
+
+With composite index:
+
+- Time Complexity ≈ O(log N + K)
+
+Where:
+- N = total rows
+- K = matching rows
+
+This is significantly faster.
+
+---
+
+## Should We Add Indexes on Every Column?
+
+No.
+
+Adding indexes on every column is inefficient.
+
+Problems:
+
+1. Increased storage usage  
+2. Slower INSERT / UPDATE operations  
+3. Index maintenance overhead  
+4. Many indexes remain unused  
+
+Best practice:
+Only index frequently queried columns.
+
+---
+
+## Query to Find Students Who Received Placement Notification in Last 7 Days
+
+```sql
+SELECT DISTINCT studentID
+FROM notifications
+WHERE notificationType = 'Placement'
+AND createdAt >= NOW() - INTERVAL '7 days';
+```
+
